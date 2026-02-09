@@ -37,10 +37,6 @@
                 <option value="bestseller">Bán chạy nhất</option>
                 <option value="rating">Đánh giá cao</option>
               </select>
-              <div class="view-modes">
-                <button class="view-btn active">▦</button>
-                <button class="view-btn">☰</button>
-              </div>
             </div>
           </div>
 

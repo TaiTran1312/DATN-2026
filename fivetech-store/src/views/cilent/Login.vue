@@ -1,7 +1,7 @@
 <template>
   <div class="auth-page">
     <div class="auth-container">
-      <!-- Left Side - Branding -->
+      <!-- Left Side - Branding (giữ nguyên) -->
       <div class="auth-branding">
         <div class="brand-content">
           <div class="brand-logo">
@@ -41,6 +41,11 @@
           <h2 class="form-title">Đăng nhập</h2>
           <p class="form-subtitle">Nhập thông tin tài khoản của bạn</p>
 
+          <!-- Hiển thị lỗi -->
+          <div v-if="errorMessage" class="error-message">
+            {{ errorMessage }}
+          </div>
+
           <form class="auth-form" @submit.prevent="handleLogin">
             <div class="form-group">
               <label class="form-label">Email</label>
@@ -55,6 +60,7 @@
                   placeholder="email@example.com" 
                   class="form-input"
                   required
+                  :disabled="loading"
                 />
               </div>
             </div>
@@ -72,8 +78,9 @@
                   placeholder="••••••••" 
                   class="form-input"
                   required
+                  :disabled="loading"
                 />
-                <button type="button" class="toggle-password" @click="showPassword = !showPassword">
+                <button type="button" class="toggle-password" @click="showPassword = !showPassword" :disabled="loading">
                   <svg v-if="!showPassword" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"></path>
                     <circle cx="12" cy="12" r="3"></circle>
@@ -90,14 +97,14 @@
 
             <div class="form-options">
               <label class="checkbox-wrapper">
-                <input type="checkbox" v-model="rememberMe" />
+                <input type="checkbox" v-model="rememberMe" :disabled="loading" />
                 <span class="checkbox-label">Ghi nhớ đăng nhập</span>
               </label>
               <a href="/forgot-password" class="forgot-link">Quên mật khẩu?</a>
             </div>
 
-            <button type="submit" class="btn-submit">
-              Đăng nhập
+            <button type="submit" class="btn-submit" :disabled="loading">
+              {{ loading ? 'Đang đăng nhập...' : 'Đăng nhập' }}
             </button>
           </form>
 
@@ -135,19 +142,81 @@
 
 <script setup>
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+import api from '@/api'  // ← Dùng axios instance (khuyến nghị) thay vì fetch thủ công
 
 const email = ref('')
 const password = ref('')
 const showPassword = ref(false)
 const rememberMe = ref(false)
+const loading = ref(false)
+const errorMessage = ref('')
 
-const handleLogin = () => {
-  console.log('Login:', { email: email.value, password: password.value, rememberMe: rememberMe.value })
-  // TODO: Implement actual login logic
+const router = useRouter()
+
+const handleLogin = async () => {
+  errorMessage.value = ''
+  loading.value = true
+
+  try {
+    const response = await api.post('/login', {  // ← dùng api.post thay fetch
+      email: email.value.trim(),
+      password: password.value,
+      remember: rememberMe.value,
+    })
+
+    const data = response.data
+
+    // Lưu token và user (đồng bộ với trang chủ)
+    if (data.token) {
+      localStorage.setItem('token', data.token)           // ← key là 'token' (như trang chủ)
+      localStorage.setItem('user', JSON.stringify(data.user || {}))
+      
+      // Nếu api đã có interceptor thì không cần set thủ công nữa
+      // Nhưng để chắc chắn, có thể set lại
+      api.defaults.headers.common['Authorization'] = `Bearer ${data.token}`
+    }
+
+    alert(data.message || 'Đăng nhập thành công!')
+
+    // Redirect về trang chủ
+    router.push('/')
+
+  } catch (err) {
+    // Xử lý lỗi từ backend
+    if (err.response) {
+      const { status, data } = err.response
+      
+      if (status === 401) {
+        errorMessage.value = data.message || 'Email hoặc mật khẩu không chính xác.'
+      } else if (status === 422) {
+        errorMessage.value = data.message || 'Vui lòng kiểm tra lại thông tin.'
+      } else if (status === 403) {
+        errorMessage.value = data.message || 'Tài khoản của bạn đã bị khóa.'
+      } else {
+        errorMessage.value = 'Có lỗi xảy ra. Vui lòng thử lại.'
+      }
+    } else {
+      errorMessage.value = 'Không thể kết nối đến server.'
+    }
+  } finally {
+    loading.value = false
+  }
 }
 </script>
-
 <style scoped>
+/* Thêm style cho error message */
+.error-message {
+  background: #fee2e2;
+  color: #dc2626;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  text-align: center;
+}
+
+
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 .auth-page {

@@ -47,6 +47,11 @@
           <h2 class="form-title">Đăng ký tài khoản</h2>
           <p class="form-subtitle">Nhập thông tin để tạo tài khoản mới</p>
 
+          <!-- Hiển thị lỗi -->
+          <div v-if="errorMessage" class="error-message">
+            {{ errorMessage }}
+          </div>
+
           <form class="auth-form" @submit.prevent="handleRegister">
             <div class="form-row">
               <div class="form-group">
@@ -62,6 +67,7 @@
                     placeholder="Nguyễn" 
                     class="form-input"
                     required
+                    :disabled="loading"
                   />
                 </div>
               </div>
@@ -78,6 +84,7 @@
                     placeholder="Văn A" 
                     class="form-input"
                     required
+                    :disabled="loading"
                   />
                 </div>
               </div>
@@ -96,6 +103,7 @@
                   placeholder="email@example.com" 
                   class="form-input"
                   required
+                  :disabled="loading"
                 />
               </div>
             </div>
@@ -112,6 +120,7 @@
                   placeholder="0912345678" 
                   class="form-input"
                   required
+                  :disabled="loading"
                 />
               </div>
             </div>
@@ -129,8 +138,9 @@
                   placeholder="Tối thiểu 8 ký tự" 
                   class="form-input"
                   required
+                  :disabled="loading"
                 />
-                <button type="button" class="toggle-password" @click="showPassword = !showPassword">
+                <button type="button" class="toggle-password" @click="showPassword = !showPassword" :disabled="loading">
                   <svg v-if="!showPassword" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"></path>
                     <circle cx="12" cy="12" r="3"></circle>
@@ -162,8 +172,9 @@
                   placeholder="Nhập lại mật khẩu" 
                   class="form-input"
                   required
+                  :disabled="loading"
                 />
-                <button type="button" class="toggle-password" @click="showConfirmPassword = !showConfirmPassword">
+                <button type="button" class="toggle-password" @click="showConfirmPassword = !showConfirmPassword" :disabled="loading">
                   <svg v-if="!showConfirmPassword" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"></path>
                     <circle cx="12" cy="12" r="3"></circle>
@@ -179,14 +190,14 @@
             </div>
 
             <label class="checkbox-wrapper">
-              <input type="checkbox" v-model="agreeTerms" required />
+              <input type="checkbox" v-model="agreeTerms" :disabled="loading" required />
               <span class="checkbox-label">
                 Tôi đồng ý với <a href="/terms" class="terms-link">Điều khoản dịch vụ</a> và <a href="/privacy" class="terms-link">Chính sách bảo mật</a>
               </span>
             </label>
 
-            <button type="submit" class="btn-submit">
-              Đăng ký
+            <button type="submit" class="btn-submit" :disabled="loading">
+              {{ loading ? 'Đang đăng ký...' : 'Đăng ký' }}
             </button>
           </form>
 
@@ -224,48 +235,102 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
+import api from '@/api'  // axios instance với interceptor (đã có từ trước)
 
-const firstName = ref('')
-const lastName = ref('')
-const email = ref('')
-const phone = ref('')
-const password = ref('')
+const firstName       = ref('')
+const lastName        = ref('')
+const email           = ref('')
+const phone           = ref('')
+const password        = ref('')
 const confirmPassword = ref('')
-const showPassword = ref(false)
+const showPassword    = ref(false)
 const showConfirmPassword = ref(false)
-const agreeTerms = ref(false)
+const agreeTerms      = ref(false)
+const loading         = ref(false)
+const errorMessage    = ref('')
+
+const router = useRouter()
 
 const passwordStrength = computed(() => {
   if (password.value.length === 0) return ''
-  if (password.value.length < 6) return 'weak'
-  if (password.value.length < 10) return 'medium'
+  if (password.value.length < 8) return 'weak'     // backend yêu cầu min:8
+  if (password.value.length < 12) return 'medium'
   return 'strong'
 })
 
 const passwordStrengthText = computed(() => {
   if (password.value.length === 0) return ''
-  if (password.value.length < 6) return 'Yếu'
-  if (password.value.length < 10) return 'Trung bình'
+  if (password.value.length < 8) return 'Yếu'
+  if (password.value.length < 12) return 'Trung bình'
   return 'Mạnh'
 })
 
-const handleRegister = () => {
+const handleRegister = async () => {
+  errorMessage.value = ''
+
   if (password.value !== confirmPassword.value) {
-    alert('Mật khẩu xác nhận không khớp!')
+    errorMessage.value = 'Mật khẩu xác nhận không khớp!'
     return
   }
-  console.log('Register:', { 
-    firstName: firstName.value, 
-    lastName: lastName.value,
-    email: email.value,
-    phone: phone.value,
-    password: password.value
-  })
-  // TODO: Implement actual register logic
+
+  if (!agreeTerms.value) {
+    errorMessage.value = 'Vui lòng đồng ý với điều khoản dịch vụ và chính sách bảo mật!'
+    return
+  }
+
+  loading.value = true
+
+  try {
+    const response = await api.post('/register', {
+      full_name: `${lastName.value.trim()} ${firstName.value.trim()}`.trim(),
+      email: email.value.trim(),
+      phone: phone.value.trim() || null,
+      password: password.value,
+      password_confirmation: confirmPassword.value,
+    })
+
+    const data = response.data
+
+    // LƯU TOKEN VỚI KEY 'token' - đồng bộ với toàn bộ app
+    if (data.token) {
+      localStorage.setItem('token', data.token)
+      if (data.user) {
+        localStorage.setItem('user', JSON.stringify(data.user))
+      }
+    }
+
+    alert(data.message || 'Đăng ký thành công!')
+
+    // Redirect về trang chủ (vì đã có token → tự động auth)
+    router.push('/')
+
+  } catch (err) {
+    if (err.response?.status === 422 && err.response.data.errors) {
+      const errors = err.response.data.errors
+      // Lấy lỗi đầu tiên hiển thị (có thể mở rộng gán lỗi cho từng field sau)
+      errorMessage.value = Object.values(errors)[0]?.[0] || 'Thông tin đăng ký không hợp lệ!'
+    } else {
+      errorMessage.value = err.response?.data?.message || 'Đăng ký thất bại. Vui lòng thử lại sau.'
+    }
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
 <style scoped>
+/* Thêm style cho error message */
+.error-message {
+  background: #fee2e2;
+  color: #dc2626;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  text-align: center;
+  border: 1px solid #fecaca;
+}
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 .auth-page {
