@@ -200,7 +200,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import api from '@/api'  // Import axios instance của bạn (baseURL + token interceptor)
+import api from '@/api'  // axios instance với baseURL + interceptor token
 
 import HomeHeader from '@/components/home/HomeHeader.vue'
 import HomeHero from '@/components/home/HomeHero.vue'
@@ -213,12 +213,13 @@ import HomeFooter from '@/components/home/HomeFooter.vue'
 const bestSellers = ref([])
 const newArrivals = ref([])
 const onSale = ref([])
+const wishlist = ref([]) // array IDs sản phẩm yêu thích
 const loading = ref(true)
-const wishlist = ref([]) // Lưu IDs sản phẩm yêu thích (fetch từ API /wishlist nếu login)
+const error = ref(null)
 
 // Helpers
 const formatPrice = (price) => {
-  return new Intl.NumberFormat('vi-VN').format(price)
+  return new Intl.NumberFormat('vi-VN').format(price) + 'đ'
 }
 
 const isInWishlist = (id) => wishlist.value.includes(id)
@@ -226,8 +227,9 @@ const isInWishlist = (id) => wishlist.value.includes(id)
 const toggleWishlist = async (productId) => {
   if (!api.defaults.headers.common['Authorization']) {
     alert('Vui lòng đăng nhập để thêm yêu thích!')
-    return
+    return router.push('/login')
   }
+
   try {
     if (isInWishlist(productId)) {
       await api.delete(`/wishlist/remove/${productId}`)
@@ -238,58 +240,70 @@ const toggleWishlist = async (productId) => {
     }
   } catch (err) {
     console.error(err)
+    alert('Có lỗi xảy ra khi cập nhật yêu thích')
   }
 }
 
 const addToCart = async (product) => {
-  if (!api.defaults.headers.common['Authorization']) {
+  if (!localStorage.getItem('token')) {
     alert('Vui lòng đăng nhập để thêm vào giỏ!')
-    return
+    return router.push('/login')
   }
+
   try {
-    // Lấy variant đầu tiên hoặc prompt chọn variant nếu có nhiều
-    const variantId = product.variants?.[0]?.variant_id
-    if (!variantId) return alert('Sản phẩm không có biến thể')
+    // Gọi CSRF trước POST
+    await api.get('/sanctum/csrf-cookie')
+
+    const variant = product.variants?.[0]
+    if (!variant) return alert('Sản phẩm không có biến thể khả dụng')
 
     await api.post('/cart/add', {
-      variant_id: variantId,
+      variant_id: variant.variant_id,
       quantity: 1
     })
+
     alert('Đã thêm vào giỏ hàng!')
   } catch (err) {
     console.error(err)
-    alert('Có lỗi xảy ra!')
+    if (err.response?.status === 419 || err.response?.data?.message?.includes('CSRF')) {
+      alert('CSRF token không hợp lệ. Vui lòng thử lại.')
+    } else {
+      alert('Có lỗi xảy ra')
+    }
   }
 }
-
-// Fetch data
+// Fetch data khi mount
 onMounted(async () => {
-  try {
-    loading.value = true
+  loading.value = true
+  error.value = null
 
-    // Fetch bán chạy (giả sử filter=hot hoặc sort by likes_count/sales)
+  try {
+    // Fetch best sellers
     const resBest = await api.get('/products', { params: { filter: 'hot', per_page: 8 } })
     bestSellers.value = resBest.data.data || resBest.data
 
-    // Mới về
+    // New arrivals
     const resNew = await api.get('/products', { params: { filter: 'new', per_page: 8 } })
     newArrivals.value = resNew.data.data || resNew.data
 
-    // Khuyến mãi (có discount)
+    // On sale
     const resSale = await api.get('/products', { params: { filter: 'sale', per_page: 8 } })
     onSale.value = resSale.data.data || resSale.data
 
-    // Nếu login, fetch wishlist
+    // Fetch wishlist nếu đã login
     if (localStorage.getItem('token')) {
       const resWish = await api.get('/wishlist')
       wishlist.value = resWish.data.map(item => item.product_id)
     }
   } catch (err) {
-    console.error('Lỗi fetch sản phẩm:', err)
+    console.error('Lỗi fetch dữ liệu:', err)
+    error.value = 'Không thể tải dữ liệu. Vui lòng thử lại.'
   } finally {
     loading.value = false
   }
 })
+
+const router = useRouter()
 </script>
 
 <style scoped>

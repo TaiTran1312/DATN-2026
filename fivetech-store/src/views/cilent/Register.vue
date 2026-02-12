@@ -236,7 +236,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import api from '@/api'  // axios instance với interceptor (đã có từ trước)
+import api from '@/api'
 
 const firstName       = ref('')
 const lastName        = ref('')
@@ -253,14 +253,14 @@ const errorMessage    = ref('')
 const router = useRouter()
 
 const passwordStrength = computed(() => {
-  if (password.value.length === 0) return ''
-  if (password.value.length < 8) return 'weak'     // backend yêu cầu min:8
+  if (!password.value) return ''
+  if (password.value.length < 8) return 'weak'
   if (password.value.length < 12) return 'medium'
   return 'strong'
 })
 
 const passwordStrengthText = computed(() => {
-  if (password.value.length === 0) return ''
+  if (!password.value) return ''
   if (password.value.length < 8) return 'Yếu'
   if (password.value.length < 12) return 'Trung bình'
   return 'Mạnh'
@@ -275,13 +275,14 @@ const handleRegister = async () => {
   }
 
   if (!agreeTerms.value) {
-    errorMessage.value = 'Vui lòng đồng ý với điều khoản dịch vụ và chính sách bảo mật!'
+    errorMessage.value = 'Bạn cần đồng ý với điều khoản!'
     return
   }
 
   loading.value = true
 
   try {
+    // Không cần gọi csrf thủ công nữa nếu interceptor đã xử lý
     const response = await api.post('/register', {
       full_name: `${lastName.value.trim()} ${firstName.value.trim()}`.trim(),
       email: email.value.trim(),
@@ -292,26 +293,33 @@ const handleRegister = async () => {
 
     const data = response.data
 
-    // LƯU TOKEN VỚI KEY 'token' - đồng bộ với toàn bộ app
     if (data.token) {
       localStorage.setItem('token', data.token)
-      if (data.user) {
-        localStorage.setItem('user', JSON.stringify(data.user))
-      }
+      localStorage.setItem('user', JSON.stringify(data.user || {}))
     }
 
     alert(data.message || 'Đăng ký thành công!')
 
-    // Redirect về trang chủ (vì đã có token → tự động auth)
     router.push('/')
 
   } catch (err) {
-    if (err.response?.status === 422 && err.response.data.errors) {
-      const errors = err.response.data.errors
-      // Lấy lỗi đầu tiên hiển thị (có thể mở rộng gán lỗi cho từng field sau)
-      errorMessage.value = Object.values(errors)[0]?.[0] || 'Thông tin đăng ký không hợp lệ!'
+    console.error('Register error:', err)
+
+    if (err.response) {
+      const { status, data } = err.response
+
+      if (status === 422 && data.errors) {
+        const firstError = Object.values(data.errors)[0]?.[0]
+        errorMessage.value = firstError || 'Thông tin không hợp lệ!'
+      } else if (status === 419) {
+        errorMessage.value = 'CSRF token không hợp lệ. Vui lòng thử lại!'
+      } else if (status === 429) {
+        errorMessage.value = 'Quá nhiều yêu cầu. Vui lòng chờ!'
+      } else {
+        errorMessage.value = data.message || 'Đăng ký thất bại!'
+      }
     } else {
-      errorMessage.value = err.response?.data?.message || 'Đăng ký thất bại. Vui lòng thử lại sau.'
+      errorMessage.value = 'Không kết nối được server. Kiểm tra mạng!'
     }
   } finally {
     loading.value = false

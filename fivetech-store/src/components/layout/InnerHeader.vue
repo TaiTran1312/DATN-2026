@@ -1,3 +1,4 @@
+<!-- fivetech-store/src/components/layout/InnerHeader.vue -->
 <template>
   <header class="home-header">
     <div class="header-container">
@@ -34,9 +35,45 @@
 
       <!-- Auth Buttons -->
       <div class="auth-buttons">
+      <template v-if="!auth.isAuthenticated">
         <a href="/login" class="auth-btn login-btn">Đăng nhập</a>
         <a href="/register" class="auth-btn register-btn">Đăng ký</a>
-      </div>
+      </template>
+
+      <template v-else>
+        <div class="relative user-menu">
+          <button 
+            class="flex items-center gap-2 focus:outline-none"
+            @click="showUserMenu = !showUserMenu"
+          >
+            <img
+              :src="auth.user?.avatar || 'https://ui-avatars.com/api/?name=' + (auth.user?.name || 'User')"
+              alt="Avatar"
+              class="w-9 h-9 rounded-full object-cover border border-gray-300"
+            />
+            <span class="hidden md:inline font-medium">{{ auth.user?.name || 'Tài khoản' }}</span>
+          </button>
+
+          <div 
+            v-if="showUserMenu"
+            class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl py-1 z-50 border border-gray-200"
+          >
+            <a 
+              href="/account" 
+              class="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              Trang cá nhân
+            </a>
+            <button 
+              @click="handleLogout"
+              class="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50"
+            >
+              Đăng xuất
+            </button>
+          </div>
+        </div>
+      </template>
+    </div>
 
       <!-- Cart Icon -->
       <a href="/cart" class="cart-icon">
@@ -45,7 +82,6 @@
           <circle cx="19" cy="21" r="1"></circle>
           <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"></path>
         </svg>
-        <span class="cart-count">3</span>
       </a>
 
       <!-- Mobile Menu Toggle -->
@@ -63,6 +99,7 @@
 <script setup>
 import { ref, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import axios from 'axios'
 
 const router = useRouter()
@@ -71,7 +108,16 @@ const searchQuery = ref('')
 const results = ref([])
 const showDropdown = ref(false)
 const searchBox = ref(null)
+const auth = useAuthStore()
 
+const showUserMenu = ref(false)
+
+const handleLogout = () => {
+  auth.logout()
+  showUserMenu.value = false
+  // Nếu muốn redirect về trang chủ sau logout:
+  // router.push('/')
+}
 let debounceTimer = null
 
 // Gọi API search gợi ý

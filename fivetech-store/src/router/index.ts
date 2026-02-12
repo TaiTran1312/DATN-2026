@@ -25,6 +25,12 @@ const publicRoutes = [
     component: () => import('@/views/cilent/Register.vue'),
     meta: { title: 'Đăng ký', guestOnly: true }
   },
+  {
+        path: '/account',
+        name: 'UserProfile',
+        component: () => import('@/views/cilent/UserProfile.vue'),
+        meta: { title: 'Tài khoản của tôi' }
+      },
   // Other pages use MainLayout
   {
     path: '/',
@@ -70,18 +76,18 @@ const publicRoutes = [
   }
 ]
 
-// // Auth routes (đăng nhập, đăng ký, quên mật khẩu)
+// Auth routes (đăng nhập, đăng ký, quên mật khẩu)
 // const authRoutes = [
 //   {
 //     path: '/login',
 //     name: 'Login',
-//     component: () => import('@/views/auth/LoginView.vue'),
+//     component: () => import('@/views/cilent/Login.vue'),
 //     meta: { title: 'Đăng nhập', guestOnly: true }
 //   },
 //   {
 //     path: '/register',
 //     name: 'Register',
-//     component: () => import('@/views/auth/RegisterView.vue'),
+//     component: () => import('@/views/cilent/Register.vue'),
 //     meta: { title: 'Đăng ký', guestOnly: true }
 //   },
 //   {
@@ -99,7 +105,7 @@ const publicRoutes = [
 //   }
 // ]
 
-// // User routes (cần đăng nhập)
+// User routes (cần đăng nhập)
 // const userRoutes = [
 //   {
 //     path: '/account',
@@ -208,7 +214,7 @@ const router = createRouter({
   }
 })
 
-// Navigation Guards (ví dụ cơ bản - bạn có thể mở rộng sau)
+// // Navigation Guards (ví dụ cơ bản - bạn có thể mở rộng sau)
 // router.beforeEach((to, from, next) => {
 //   // Cập nhật title
 //   document.title = to.meta.title ? `${to.meta.title} | FiveTech Store` : 'FiveTech Store'

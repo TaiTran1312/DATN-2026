@@ -12,71 +12,98 @@ use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\PromotionController;
 use App\Http\Controllers\Api\UserController;
 
+// Tất cả route trong api.php đã có prefix /api tự động
+// Ta thêm prefix 'v1' để versioning → /api/v1/...
+
 Route::prefix('v1')->group(function () {
 
     // ======================
-    // PUBLIC ROUTES (không cần đăng nhập)
+    // PUBLIC ROUTES (không cần auth)
     // ======================
+
     // Products
-    Route::get('/products', [ProductController::class, 'index']);               // Danh sách + filter (hot/new/sale/category/price/search)
-    Route::get('/products/{slug}', [ProductController::class, 'show']);         // Chi tiết sản phẩm
-    Route::get('/search', [ProductController::class, 'search']);                     // Tìm kiếm nhanh
-    Route::get('/products/search', [ProductController::class, 'search']);       // Tìm kiếm nhanh
+    Route::get('/products', [ProductController::class, 'index']);
+    Route::get('/products/{slug}', [ProductController::class, 'show']);
+    Route::get('/products/search', [ProductController::class, 'search']);
 
     // Categories
-    Route::get('/categories', [CategoryController::class, 'index']);            // Danh sách danh mục
-    Route::get('/categories/{slug}', [CategoryController::class, 'show']);      // Chi tiết danh mục + sản phẩm trong danh mục
+    Route::get('/categories', [CategoryController::class, 'index']);
+    Route::get('/categories/{slug}', [CategoryController::class, 'show']);
 
     // Promotions
-    Route::get('/promotions/active', [PromotionController::class, 'active']);   // Danh sách mã khuyến mãi đang hoạt động
-    Route::post('/promotions/check', [PromotionController::class, 'checkCode']); // Kiểm tra mã giảm giá hợp lệ (dùng khi checkout)
+    Route::get('/promotions/active', [PromotionController::class, 'active']);
+    Route::post('/promotions/check', [PromotionController::class, 'checkCode']);
 
     // Auth
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
-    Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
+
 
     // ======================
-    // PROTECTED ROUTES (yêu cầu đăng nhập + token)
+    // PROTECTED ROUTES (yêu cầu đăng nhập Sanctum)
     // ======================
     Route::middleware('auth:sanctum')->group(function () {
 
         // User / Profile
-        Route::get('/user', [UserController::class, 'me']);                     // Thông tin user hiện tại
-        Route::put('/user/profile', [UserController::class, 'updateProfile']);  // Cập nhật thông tin (tên, sđt, địa chỉ)
-        Route::put('/user/password', [UserController::class, 'updatePassword']); // Đổi mật khẩu
-        Route::post('/user/avatar', [UserController::class, 'updateAvatar']);   // Upload avatar (nếu cần)
+        Route::get('/user', [AuthController::class, 'me']);           // /api/v1/user → lấy info user hiện tại
+        Route::put('/user/profile', [AuthController::class, 'updateProfile']);
+        Route::put('/user/password', [AuthController::class, 'updatePassword']);
+        Route::post('/user/avatar', [AuthController::class, 'updateAvatar']);
 
-        // Cart (giỏ hàng)
-        Route::get('/cart', [CartController::class, 'index']);                  // Lấy giỏ hàng
-        Route::post('/cart/add', [CartController::class, 'add']);               // Thêm sản phẩm (variant_id + quantity)
-        Route::put('/cart/update', [CartController::class, 'update']);          // Cập nhật số lượng
-        Route::delete('/cart/remove/{variant_id}', [CartController::class, 'remove']); // Xóa item
-        Route::delete('/cart/clear', [CartController::class, 'clear']);         // Xóa toàn bộ giỏ
-        Route::get('/cart/total', [CartController::class, 'total']);            // Tính tổng tiền (có thể áp dụng promo)
+        // Logout
+        Route::post('/logout', [AuthController::class, 'logout']);
 
-        // Wishlist (yêu thích)
-        Route::get('/wishlist', [WishlistController::class, 'index']);          // Danh sách yêu thích
-        Route::post('/wishlist/add/{product_id}', [WishlistController::class, 'add']);     // Thêm vào yêu thích
-        Route::delete('/wishlist/remove/{product_id}', [WishlistController::class, 'remove']); // Xóa khỏi yêu thích
-        Route::delete('/wishlist/clear', [WishlistController::class, 'clear']); // Xóa toàn bộ yêu thích
+        // Cart (cho user đăng nhập)
+        Route::prefix('cart')->group(function () {
+            Route::get('/', [CartController::class, 'index']);
+            Route::post('/add', [CartController::class, 'add']);
+            Route::put('/update', [CartController::class, 'update']);
+            Route::delete('/remove/{variant_id}', [CartController::class, 'remove']);
+            Route::delete('/clear', [CartController::class, 'clear']);
+            Route::get('/total', [CartController::class, 'total']);
+        });
 
-        // Orders (đơn hàng)
-        Route::get('/orders', [OrderController::class, 'index']);               // Danh sách đơn hàng của user
-        Route::get('/orders/{order_id}', [OrderController::class, 'show']);     // Chi tiết đơn hàng
-        Route::post('/orders', [OrderController::class, 'store']);              // Tạo đơn hàng mới (checkout)
-        Route::post('/orders/{order_id}/cancel', [OrderController::class, 'cancel']); // Hủy đơn (nếu còn pending)
-        Route::post('/orders/{order_id}/confirm-received', [OrderController::class, 'confirmReceived']); // Xác nhận đã nhận hàng
+        // Wishlist
+        Route::prefix('wishlist')->group(function () {
+            Route::get('/', [WishlistController::class, 'index']);
+            Route::post('/add/{product_id}', [WishlistController::class, 'add']);
+            Route::delete('/remove/{product_id}', [WishlistController::class, 'remove']);
+            Route::delete('/clear', [WishlistController::class, 'clear']);
+        });
+
+        // Orders
+        Route::prefix('orders')->group(function () {
+            Route::get('/', [OrderController::class, 'index']);
+            Route::get('/{order_id}', [OrderController::class, 'show']);
+            Route::post('/', [OrderController::class, 'store']);                    // tạo đơn hàng
+            Route::post('/{order_id}/cancel', [OrderController::class, 'cancel']);
+            Route::post('/{order_id}/confirm-received', [OrderController::class, 'confirmReceived']);
+            Route::post('/checkout/validate', [OrderController::class, 'validateCheckout']); // validate trước khi tạo order
+        });
 
         // Comments / Reviews
-        Route::post('/products/{product_id}/comments', [CommentController::class, 'store']); // Viết bình luận mới
-        Route::post('/comments/{comment_id}/reply', [CommentController::class, 'reply']);    // Trả lời bình luận
-        Route::put('/comments/{comment_id}', [CommentController::class, 'update']);          // Sửa bình luận
-        Route::delete('/comments/{comment_id}', [CommentController::class, 'destroy']);      // Xóa bình luận
-        Route::post('/comments/{comment_id}/like', [CommentController::class, 'like']);      // Like bình luận
-        Route::post('/comments/{comment_id}/unlike', [CommentController::class, 'unlike']);  // Unlike
+        Route::prefix('products/{product_id}/comments')->group(function () {
+            Route::post('/', [CommentController::class, 'store']);
+        });
 
-        // Checkout & Payment (nếu cần bước riêng)
-        Route::post('/checkout/validate', [OrderController::class, 'validateCheckout']); // Validate trước khi tạo order (stock, promo, ...)
+        Route::prefix('comments')->group(function () {
+            Route::post('/{comment_id}/reply', [CommentController::class, 'reply']);
+            Route::put('/{comment_id}', [CommentController::class, 'update']);
+            Route::delete('/{comment_id}', [CommentController::class, 'destroy']);
+            Route::post('/{comment_id}/like', [CommentController::class, 'like']);
+            Route::post('/{comment_id}/unlike', [CommentController::class, 'unlike']);
+        });
+    });
+
+    // ======================
+    // GUEST CART (tùy chọn - cho khách chưa đăng nhập, dùng session)
+    // ======================
+    // Nếu frontend chưa hỗ trợ guest cart thì comment block này lại
+    Route::prefix('guest/cart')->group(function () {
+        Route::get('/', [CartController::class, 'guestIndex']);
+        Route::post('/add', [CartController::class, 'addGuest']);
+        Route::put('/update', [CartController::class, 'updateGuest']);
+        Route::delete('/remove/{variant_id}', [CartController::class, 'removeGuest']);
+        Route::delete('/clear', [CartController::class, 'clearGuest']);
     });
 });

@@ -108,61 +108,42 @@ class CartController extends Controller
      * Cập nhật số lượng sản phẩm trong giỏ
      */
     public function update(Request $request)
-    {
-        $request->validate([
-            'variant_id' => 'required|exists:product_variants,variant_id',
-            'quantity' => 'required|integer|min:1',
-        ]);
+{
+    $validated = $request->validate([
+        'id'         => 'required|exists:cart_items,id',
+        'quantity'   => 'required|integer|min:1',           // chỉ yêu cầu min:1, không giới hạn max
+        'variant_id' => 'nullable|exists:product_variants,id', // hoàn toàn tùy chọn
+    ]);
 
-        $user = Auth::guard('sanctum')->user();
+    $cartItem = CartItem::findOrFail($validated['id']);
+    $user = Auth::guard('sanctum')->user();
 
-        $query = CartItem::where('variant_id', $request->variant_id);
+    // Cập nhật số lượng và variant_id (nếu gửi)
+    $cartItem->update([
+        'quantity'   => $validated['quantity'],
+        'variant_id' => $validated['variant_id'] ?? $cartItem->variant_id, // giữ nguyên nếu không gửi
+    ]);
 
-        if ($user) {
-            $query->where('user_id', $user->id);
-        } else {
-            $query->where('session_id', $request->session()->getId())
-                  ->whereNull('user_id');
-        }
+    // Tùy chọn: reload item với quan hệ để trả về thông tin đầy đủ
+    $cartItem->load(['variant', 'variant.product']);
 
-        $cartItem = $query->firstOrFail();
-
-        $cartItem->quantity = $request->quantity;
-        $cartItem->save();
-
-        return response()->json([
-            'message' => 'Đã cập nhật số lượng',
-            'cart_item' => $cartItem,
-        ]);
-    }
+    return response()->json([
+        'message' => 'Cập nhật số lượng thành công',
+        'item'    => $cartItem,
+    ]);
+}
 
     /**
      * Xóa một sản phẩm khỏi giỏ
      */
-    public function remove(Request $request, $variant_id)
+    public function remove($id)
     {
-        $user = Auth::guard('sanctum')->user();
-
-        $query = CartItem::where('variant_id', $variant_id);
-
-        if ($user) {
-            $query->where('user_id', $user->id);
-        } else {
-            $query->where('session_id', $request->session()->getId())
-                  ->whereNull('user_id');
-        }
-
-        $cartItem = $query->first();
-
-        if (!$cartItem) {
-            return response()->json(['message' => 'Không tìm thấy sản phẩm trong giỏ'], 404);
-        }
+        $cartItem = CartItem::findOrFail($id);
 
         $cartItem->delete();
 
-        return response()->json(['message' => 'Đã xóa sản phẩm khỏi giỏ hàng']);
+        return response()->json(['message' => 'Xóa sản phẩm thành công'], 200);
     }
-
     /**
      * Xóa toàn bộ giỏ hàng
      */

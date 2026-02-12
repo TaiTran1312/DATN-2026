@@ -10,34 +10,47 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
+    /**
+     * Đăng ký người dùng mới
+     */
     public function register(Request $request)
     {
         $validated = $request->validate([
-            'email'      => 'required|email|unique:users,email',
-            'password'   => 'required|min:8|confirmed',
-            'full_name'  => 'required|string|max:100',
-            'phone'      => 'nullable|string|max:20',
-            'address'    => 'nullable|string|max:255', // thêm nếu cần
+            'full_name'             => 'required|string|max:255',
+            'email'                 => 'required|email|unique:users,email',
+            'phone'                 => 'nullable|string|max:20',
+            'address'               => 'nullable|string|max:255',
+            'password'              => 'required|min:8|confirmed',
         ]);
 
         $user = User::create([
-            'email'       => $validated['email'],
-            'password'    => $validated['password'], // mutator tự hash
-            'full_name'   => $validated['full_name'],
-            'phone'       => $validated['phone'] ?? null,
-            'address'     => $validated['address'] ?? null,
-            'is_active'   => 1,
+            'full_name' => $validated['full_name'],
+            'email'     => $validated['email'],
+            'phone'     => $validated['phone'] ?? null,
+            'address'   => $validated['address'] ?? null,
+            'password'  => $validated['password'], // mutator sẽ tự hash
+            'is_active' => true,
         ]);
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
             'message' => 'Đăng ký thành công',
-            'user'    => $user->only(['user_id', 'email', 'full_name', 'phone', 'address']),
+            'user'    => [
+                'id'        => $user->id,
+                'full_name' => $user->full_name,
+                'email'     => $user->email,
+                'phone'     => $user->phone,
+                'address'   => $user->address,
+                'is_active' => $user->is_active,
+            ],
             'token'   => $token,
         ], 201);
     }
 
+    /**
+     * Đăng nhập
+     */
     public function login(Request $request)
     {
         $validated = $request->validate([
@@ -48,10 +61,11 @@ class AuthController extends Controller
 
         $user = User::where('email', $validated['email'])->first();
 
-        if (!$user || !Hash::check($validated['password'], $user->password)) {
+        // Kiểm tra user tồn tại VÀ password đúng
+        if (!$user || !Hash::check($validated['password'], $user->password ?? '')) {
             return response()->json([
                 'message' => 'Email hoặc mật khẩu không chính xác.',
-            ], 401); // ← Đổi sang 401 Unauthorized
+            ], 401);
         }
 
         if (!$user->is_active) {
@@ -60,26 +74,43 @@ class AuthController extends Controller
             ], 403);
         }
 
-        // Tùy chọn: Xóa token cũ để chỉ cho 1 thiết bị đăng nhập
-        // $user->tokens()->where('name', 'auth_token')->delete();
-
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
             'message' => 'Đăng nhập thành công',
-            'user'    => $user->only(['user_id', 'email', 'full_name', 'phone', 'address']),
+            'user'    => $user->only(['id', 'full_name', 'email', 'phone', 'address', 'is_active']),
             'token'   => $token,
         ]);
     }
 
+    /**
+     * Đăng xuất
+     */
     public function logout(Request $request)
     {
         $request->user()->currentAccessToken()->delete();
 
         return response()->json([
-            'message' => 'Đăng xuất thành công'
+            'message' => 'Đăng xuất thành công',
         ]);
     }
 
-}
+    /**
+     * Lấy thông tin user hiện tại
+     */
+    public function me(Request $request)
+    {
+        $user = $request->user();
 
+        return response()->json([
+            'user' => [
+                'id'        => $user->id,
+                'full_name' => $user->full_name,
+                'email'     => $user->email,
+                'phone'     => $user->phone,
+                'address'   => $user->address,
+                'is_active' => $user->is_active,
+            ],
+        ]);
+    }
+}

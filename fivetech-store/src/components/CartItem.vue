@@ -37,13 +37,37 @@
 </template>
 
 <script setup>
+import { onMounted } from 'vue'
 import { useCartStore } from '@/stores/cart'
+import { useAuthStore } from '@/stores/auth'
+import { useRouter } from 'vue-router'
 
+const cartStore = useCartStore()
+const auth = useAuthStore()
+const router = useRouter()
+
+onMounted(async () => {
+  if (auth.isAuthenticated) {
+    await cartStore.fetchCart()
+  } else {
+    // Optional: redirect hoặc thông báo
+    // router.push('/login?redirect=/cart')
+  }
+})
+
+// Ví dụ hàm thêm sản phẩm (nếu có nút "Thêm vào giỏ")
+const addToCart = async (productId, variantId, quantity = 1) => {
+  try {
+    await api.post('/cart/add', { product_id: productId, variant_id: variantId, quantity })
+    await cartStore.fetchCart()
+  } catch (err) {
+    alert('Không thể thêm vào giỏ: ' + (err.response?.data?.message || err.message))
+  }
+}
 const props = defineProps({
   item: Object
 })
 
-const cartStore = useCartStore()
 
 const formatPrice = (price) =>
   price.toLocaleString('vi-VN') + ' ₫'

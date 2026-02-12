@@ -2,55 +2,78 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+
+use App\Models\Order;
+use App\Models\Wishlist;
+use App\Models\Comment;
+use App\Models\Cart;
 
 class User extends Authenticatable
 {
-    use HasFactory, HasApiTokens;
+    use HasApiTokens, Notifiable;
 
-    protected $primaryKey = 'user_id';
-    public $incrementing = true;
+    protected $primaryKey = 'user_id';  // ← Khai báo primary key là user_id
+
+    public $incrementing = true;        // Nếu là auto-increment
+
+    protected $keyType = 'int';         // Nếu là integer
 
     protected $fillable = [
-        'email',
-        'password_hash',
         'full_name',
         'phone',
         'address',
         'is_active',
+        'email',
+        'password',
     ];
 
     protected $hidden = [
-        'password_hash',
+        'password',
+        'remember_token',
     ];
 
     protected $casts = [
-        'is_active' => 'boolean',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
+        'email_verified_at' => 'datetime',
+        'is_active'         => 'boolean',
     ];
 
-    // Relationships
+    // Nếu muốn tự động hash password khi set
+    public function setPasswordAttribute($value)
+    {
+        $this->attributes['password'] = bcrypt($value);
+    }
+ /**
+     * Kiểm tra user có active không
+     */
+    public function isActive(): bool
+    {
+        return $this->is_active === true;
+    }
+
+    /**
+     * Relationships
+     */
     public function orders()
     {
-        return $this->hasMany(Order::class, 'user_id');
+        return $this->hasMany(Order::class, 'user_id', 'user_id');
     }
 
     public function wishlist()
     {
-        return $this->hasMany(Wishlist::class, 'user_id');
+        return $this->hasMany(Wishlist::class, 'user_id', 'user_id');
     }
 
     public function comments()
     {
-        return $this->hasMany(Comment::class, 'user_id');
+        return $this->hasMany(Comment::class, 'user_id', 'user_id');
     }
 
-    // Accessor ví dụ
-    public function getPasswordHashAttribute($value)
+    public function cart()
     {
-        return null; // Không expose password
+        return $this->hasOne(Cart::class, 'user_id', 'user_id');
     }
+
 }

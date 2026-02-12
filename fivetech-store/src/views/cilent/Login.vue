@@ -143,7 +143,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import api from '@/api'  // ← Dùng axios instance (khuyến nghị) thay vì fetch thủ công
+import api from '@/api'
 
 const email = ref('')
 const password = ref('')
@@ -155,55 +155,64 @@ const errorMessage = ref('')
 const router = useRouter()
 
 const handleLogin = async () => {
+  console.log('Login payload:', {
+    email: email.value.trim(),
+    password: password.value,
+    remember: rememberMe.value,
+  });
+
   errorMessage.value = ''
   loading.value = true
 
   try {
-    const response = await api.post('/login', {  // ← dùng api.post thay fetch
+    console.log('Sending login request...') // debug
+
+    const response = await api.post('/login', {
       email: email.value.trim(),
       password: password.value,
       remember: rememberMe.value,
     })
 
     const data = response.data
+    console.log('Login success:', data) // debug
 
-    // Lưu token và user (đồng bộ với trang chủ)
     if (data.token) {
-      localStorage.setItem('token', data.token)           // ← key là 'token' (như trang chủ)
+      localStorage.setItem('token', data.token)
       localStorage.setItem('user', JSON.stringify(data.user || {}))
-      
-      // Nếu api đã có interceptor thì không cần set thủ công nữa
-      // Nhưng để chắc chắn, có thể set lại
       api.defaults.headers.common['Authorization'] = `Bearer ${data.token}`
     }
 
+    // Thay alert bằng toast nếu có thư viện
     alert(data.message || 'Đăng nhập thành công!')
 
-    // Redirect về trang chủ
     router.push('/')
 
   } catch (err) {
-    // Xử lý lỗi từ backend
+    console.error('Login error:', err)
+
     if (err.response) {
       const { status, data } = err.response
-      
+
       if (status === 401) {
         errorMessage.value = data.message || 'Email hoặc mật khẩu không chính xác.'
       } else if (status === 422) {
         errorMessage.value = data.message || 'Vui lòng kiểm tra lại thông tin.'
       } else if (status === 403) {
         errorMessage.value = data.message || 'Tài khoản của bạn đã bị khóa.'
+      } else if (status === 419) {
+        errorMessage.value = 'Phiên hết hạn (CSRF). Vui lòng thử lại!'
       } else {
         errorMessage.value = 'Có lỗi xảy ra. Vui lòng thử lại.'
       }
     } else {
-      errorMessage.value = 'Không thể kết nối đến server.'
+      errorMessage.value = 'Không thể kết nối server. Kiểm tra mạng hoặc backend!'
     }
   } finally {
     loading.value = false
   }
 }
 </script>
+
 <style scoped>
 /* Thêm style cho error message */
 .error-message {
